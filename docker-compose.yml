@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME:-laravel}_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    networks:
+      - laravel_net
+      - traefik-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME:-laravel}.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.${APP_NAME:-laravel}.entrypoints=websecure"
+      - "traefik.http.routers.${APP_NAME:-laravel}.tls=true"
+      - "traefik.http.routers.${APP_NAME:-laravel}.tls.certresolver=lets-encrypt"
+      - "traefik.http.services.${APP_NAME:-laravel}.loadbalancer.server.port=8000"
+      - "traefik.docker.network=traefik-proxy"
+    command: php artisan serve --host=0.0.0.0 --port=8000
+  db:
+    restart: unless-stopped
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_HOST: "%" # Allow root access from any host
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - laravel_net
+    labels:
+      - "traefik.enable=false"
+
+networks:
+  laravel_net:
+    driver: bridge
+  traefik-proxy:
+    external: true
+
+volumes:
+  mysql_data:
